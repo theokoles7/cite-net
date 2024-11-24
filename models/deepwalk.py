@@ -3,9 +3,10 @@
 from logging                import Logger
 
 from gensim.models          import Word2Vec
-from networkx               import Graph
-from numpy                  import ndarray, where
+from numpy                  import ndarray, unique, where
 from numpy.random           import choice
+from sklearn.linear_model   import LogisticRegression
+from sklearn.metrics        import accuracy_score, roc_auc_score
 from torch                  import tensor, Tensor
 from torch.nn               import Module
 from torch_geometric.data   import Data
@@ -73,7 +74,8 @@ class DeepWalk(Module):
         self.w2v:           Word2Vec =  Word2Vec(sentences = walks, vector_size = self.embedding_size, window = self.window_size, sg = 1, workers = 4)
         
     def forward(self,
-        node_indices:   list
+        node_indices:   list,
+        **kwargs
     ) -> Tensor:
         """# Feed nodes through network.
 
@@ -150,3 +152,43 @@ class DeepWalk(Module):
             * data  (Data):  Dataset's data component.
         """
         self.fit(data.edge_index)
+        
+    def _evaluate(self,
+        data:   Data
+    ) -> dict:
+        """# Evaluate DeepWalk model embeddings.
+
+        ## Args:
+            * data  (Data): Data object containing node features, edge index, and masks.
+
+        ## Returns:
+            * dict:
+                * accuracy: DeepWalk accuracy on nodes.
+                * auc:      DeepWalk AUC score. 
+        """
+        # Place model in evaluation mode
+        self.eval()
+        
+        # Form embeddings
+        self.embeddings:    Tensor =    self.forward(range(data.x.size(0))).detach().cpu().numpy()
+        
+        # Extract labels & masks
+        labels:             Tensor =    data.y.cpu().numpy()
+        train_mask:         Tensor =    data.train_mask.cpu().numpy()
+        test_mask:          Tensor =    data.test_mask.cpu().numpy()
+        
+        # Train classifier
+        classifier: LogisticRegression =    LogisticRegression(max_iter = 1000)
+        classifier.fit(self.embeddings[train_mask], labels[train_mask])
+        
+        # Make predictions
+        predictions:    Tensor =    classifier.predict(self.embeddings[test_mask])
+        
+        # Calculate probabilities
+        probabilities:  Tensor =    classifier.predict_proba(self.embeddings[test_mask])
+        
+        # Return accuracy & AUC score
+        return {
+            "accuracy": accuracy_score(labels[test_mask], predictions),
+            "auc":      roc_auc_score(labels[test_mask], probabilities, multi_class = "ovr") if len(unique(labels)) > 2 else roc_auc_score(labels[test_mask], probabilities)
+        }
