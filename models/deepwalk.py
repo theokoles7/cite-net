@@ -2,19 +2,18 @@
 
 from logging                import Logger
 
-from dgl                    import DGLGraph
-from dgl.nn.pytorch         import DeepWalk
-
 from gensim.models          import Word2Vec
+from networkx               import Graph
 from numpy                  import ndarray, where
 from numpy.random           import choice
 from torch                  import tensor, Tensor
 from torch.nn               import Module
+from torch_geometric.data   import Data
 from torch_geometric.utils  import to_dense_adj
 
 from utils                  import LOGGER
 
-class DeepWalk(DeepWalk):
+class DeepWalk(Module):
     """# DeepWalk Model.
     
     DeepWalk is an unsupervised graph embedding model based on random walks and the Skip-Gram model 
@@ -27,152 +26,127 @@ class DeepWalk(DeepWalk):
     _logger:    Logger =    LOGGER.getChild("deepwalk")
     
     def __init__(self,
-        g:              DGLGraph,
-        emb_dim:        int =       128,
+        embedding_size: int =       128,
         walk_length:    int =       40,
         window_size:    int =       5,
-        neg_weight:     float =     1.0,
-        negative_size:  int =       1,
-        fast_neg:       bool =      True,
-        sparse:         bool =      True
+        num_walks:      int =       10,
+        **kwargs
     ):
         """# Initialize DeepWalk model.
 
         ## Args:
-            * g             (DGLGraph):         Graph for learning node embeddings.
-            * emb_dim       (int, optional):    Size of each embedding vector. Defaults to 128.
-            * walk_length   (int, optional):    Number of nodes in a random walk sequence. Defaults 
-                                                to 40.
-            * window_size   (int, optional):    In a random walk w, a node w[j] is considered close 
-                                                to a node w[i] if i - window_size <= j <= i + 
-                                                window_size. Defaults to 5.
-            * neg_weight    (float, optional):  Weight of the loss term for negative samples in the 
-                                                total loss. Defaults to 1.0.
-            * negative_size (int, optional):    Number of negative samples to use for each positive 
-                                                sample. Defaults to 1.
-            * fast_neg      (bool, optional):   Sample negative node pairs within a batch of random 
-                                                walks. Defaults to True.
-            * sparse        (bool, optional):   Gradients with respect to the learnable weights will 
-                                                be sparse. Defaults to True.
+            * embedding_size    (int, optional):    Size of each embedding vector. Defaults to 128.
+            * walk_length       (int, optional):    Number of nodes in a random walk sequence. 
+                                                    Defaults to 40.
+            * window_size       (int, optional):    In a random walk w, a node w[j] is considered 
+                                                    close to a node w[i] if i - window_size <= j <= 
+                                                    i + window_size. Defaults to 5.
+            * num_walks         (int, optional):    Number of random walks to generate during fit.
         """
         # Initialize model
-        super(DeepWalk, self).__init__(**locals())
-    
-    # def __init__(self,
-    #     embedding_dim:  int =   128,
-    #     window_size:    int =   5,
-    #     walk_length:    int =   40,
-    #     num_walks:      int =   10,
-    #     **kwargs
-    # ):
-    #     """# Initialize DeepWalk model.
+        super(DeepWalk, self).__init__()
+        
+        # Define attributes
+        self.embedding_size:    int =   embedding_size
+        self.walk_length:       int =   walk_length
+        self.window_size:       int =   window_size
+        self.num_walks:         int =   num_walks
+        
+    def fit(self,
+        edge_index: ndarray
+    ) -> None:
+        """# Train model on graph and produce embeddings.
 
-    #     ## Args:
-    #         * embedding_dim (int, optional):    Size of each embedding vector. Defaults to 128.
-    #         * window_size   (int, optional):    In a random walk w, a node w[j] is considered close 
-    #                                             to a node w[i] if i - window_size <= j <= i + 
-    #                                             window_size. Defaults to 5.
-    #         * walk_length   (int, optional):    Number of nodes in a random walk sequence. Defaults 
-    #                                             to 40.
-    #         * num_walks     (int, optional):    Number of random walks to generate. Defaults to 10.
-    #     """
-    #     # Log action
-    #     self._logger.info(f"Initializing DeepWalk model ({locals()})")
+        ## Args:
+            * edge_index    (ndarray):  Graph's edge index.
+        """
+        # Log action
+        self._logger.info("Fitting DeepWalk model")
         
-    #     # Initialize Module
-    #     super(DeepWalk, self).__init__()
+        # Get adjacency matrix
+        adjacency_matrix:   Tensor =    to_dense_adj(edge_index = edge_index).squeeze(0).numpy()
         
-    #     # Define attributes
-    #     self.embedding_dim: int =   embedding_dim
-    #     self.window_size:   int =   window_size
-    #     self.walk_length:   int =   walk_length
-    #     self.num_walks:     int =   num_walks
+        # Generate random walks
+        walks:              list =      self._generate_random_walks(adjacency_matrix = adjacency_matrix)
         
-    # def fit(self,
-    #     edge_index: ndarray
-    # ) -> None:
-    #     """# Train model on graph and produce embeddings.
+        # Train Word2Vec model
+        self.w2v:           Word2Vec =  Word2Vec(sentences = walks, vector_size = self.embedding_size, window = self.window_size, sg = 1, workers = 4)
+        
+    def forward(self,
+        node_indices:   list
+    ) -> Tensor:
+        """# Feed nodes through network.
 
-    #     ## Args:
-    #         * edge_index    (ndarray):  Graph's edge index.
-    #     """
-    #     # Log action
-    #     self._logger.info("Fitting DeepWalk model.")
-        
-    #     # Get adjacency matrix
-    #     adjacency_matrix:   Tensor =    to_dense_adj(edge_index = edge_index).squeeze(0).numpy()
-        
-    #     # Generate random walks
-    #     walks:              list =      self._generate_random_walks(adjacency_matrix = adjacency_matrix)
-        
-    #     # Train Word2Vec model
-    #     self.w2v:           Word2Vec =  Word2Vec(sentences = walks, vector_size = self.embedding_dim, window = self.window_size, sg = 1, workers = 4)
-        
-    # def forward(self,
-    #     node_indices:   list
-    # ) -> Tensor:
-    #     """# Feed nodes through network.
+        ## Args:
+            * node_indices  (list): Nodes to predict.
 
-    #     ## Args:
-    #         * node_indices  (list): Nodes to predict.
+        ## Returns:
+            * Tensor:   Node predictions.
+        """
+        return tensor(data = [self.w2v.wv[str(node)] for node in node_indices], dtype = float)
+        
+    def _generate_random_walks(self,
+        adjacency_matrix:   Tensor
+    ) -> list:
+        """# Generate random walks across nodes.
 
-    #     ## Returns:
-    #         * Tensor:   Node predictions.
-    #     """
-    #     return tensor(data = [self.w2v.wv[str(node)] for node in node_indices], dtype = float)
-        
-    # def _generate_random_walks(self,
-    #     adjacency_matrix:   Tensor
-    # ) -> list:
-    #     """# Generate random walks across nodes.
+        ## Args:
+            * adjacency_matrix  (Tensor):   Single dense batched adjacency matrix.
 
-    #     ## Args:
-    #         * adjacency_matrix  (Tensor):   Single dense batched adjacency matrix.
-
-    #     ## Returns:
-    #         * list: List of randomly generated walks.
-    #     """
-    #     # Initialize walks
-    #     walks:      list =  []
+        ## Returns:
+            * list: List of randomly generated walks.
+        """
+        # Initialize walks
+        walks:      list =  []
         
-    #     # Record number of nodes
-    #     num_nodes:  int =   adjacency_matrix.shape[0]
+        # Record number of nodes
+        num_nodes:  int =   adjacency_matrix.shape[0]
         
-    #     # Log action
-    #     self._logger.info(f"Generating random walks acros {num_nodes} nodes")
+        # Log action
+        self._logger.info(f"Generating random walks acros {num_nodes} nodes")
         
-    #     # For each node...
-    #     for node in range(num_nodes):
+        # For each node...
+        for node in range(num_nodes):
             
-    #         # For each walk to be made...
-    #         for w in range(1, self.num_walks + 1):
+            # For each walk to be made...
+            for w in range(1, self.num_walks + 1):
                 
-    #             # Initialize walk at node
-    #             walk:   list =  [node]
+                # Initialize walk at node
+                walk:   list =  [node]
                 
-    #             # Log walk for debugging
-    #             self._logger.debug(f"\tWalk {w}/{self.num_walks}")
+                # Log walk for debugging
+                self._logger.debug(f"\tWalk {w}/{self.num_walks}")
                 
-    #             # For each step of the walk...
-    #             for s in range(1, self.walk_length):
+                # For each step of the walk...
+                for s in range(1, self.walk_length):
                     
-    #                 # Log step for debugging
-    #                 self._logger.debug(f"\t\tStep {s}/{self.walk_length}")
+                    # Log step for debugging
+                    self._logger.debug(f"\t\tStep {s}/{self.walk_length}")
                     
-    #                 # Get current node
-    #                 current:    int =       walk[-1]
+                    # Get current node
+                    current:    int =       walk[-1]
                     
-    #                 # Find neighbors
-    #                 neighbors:  ndarray =   where(adjacency_matrix[current] > 0)[0]
+                    # Find neighbors
+                    neighbors:  ndarray =   where(adjacency_matrix[current] > 0)[0]
                     
-    #                 # If there are no neighbors, skip
-    #                 if len(neighbors) == 0: break
+                    # If there are no neighbors, skip
+                    if len(neighbors) == 0: break
                     
-    #                 # Otherwise, append random neighbor to walk
-    #                 walk.append(choice(neighbors))
+                    # Otherwise, append random neighbor to walk
+                    walk.append(choice(neighbors))
                     
-    #             # Append walk to walks
-    #             walks.append(list(map(str, walk)))
+                # Append walk to walks
+                walks.append(list(map(str, walk)))
                 
-    #     # Return generated walks
-    #     return walks
+        # Return generated walks
+        return walks
+    
+    def _train(self,
+        data:   Data
+    ) -> None:
+        """# Train model and produce emebeddings.
+
+        ## Args:
+            * data  (Data):  Dataset's data component.
+        """
+        self.fit(data.edge_index)
