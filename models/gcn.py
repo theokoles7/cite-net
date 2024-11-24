@@ -2,8 +2,9 @@
 
 from logging                import Logger
 
-from numpy                  import ndarray
-from torch                  import Tensor
+from numpy                  import ndarray, unique
+from sklearn.metrics        import accuracy_score, roc_auc_score
+from torch                  import no_grad, softmax, Tensor
 from torch.nn               import Module
 from torch.nn.functional    import log_softmax, nll_loss, relu
 from torch.optim            import Adam
@@ -101,3 +102,47 @@ class GCN(Module):
             
             # Update weights
             optimizer.step()
+            
+    def _evaluate(self,
+        data:   Data
+    ) -> dict:
+        """# Evaluate GCN model.
+
+        ## Args:
+            * data  (Data): Data object containing node features, edge index, and masks.
+
+        ## Returns:
+            * dict:
+                * accuracy: GCN accuracy on nodes.
+                * auc:      GCN AUC score. 
+        """
+        # Place model in evaluation mode
+        self.eval()
+        
+        # With no need for gradient calculation...
+        with no_grad():
+            
+            # Make forward pass through network
+            output:         Tensor =    self.forward(data.x, data.edge_index)
+            
+            # Extract predictions
+            predictions:    Tensor =    output.argmax(dim = 1).cpu().numpy()
+            
+            # Extract targets
+            targets:        Tensor =    data.y.cpu().numpy()
+            
+            # Extract train & test masks
+            train_mask:     Tensor =    data.train_mask.cpu().numpy()
+            test_mask:      Tensor =    data.test_mask.cpu().numpy()
+            
+            # Train classifier
+            test_predictions:   Tensor =    predictions[test_mask]
+            test_probabilities: Tensor =    softmax(output[test_mask], dim = 1).cpu().numpy()
+            
+            # Calculate accuracy & AUC score
+            return {
+                "accuracy": accuracy_score(targets[test_mask], predictions[test_mask]),
+                "auc":      roc_auc_score(targets[test_mask], softmax(output[test_mask], dim = 1).cpu().numpy(), multi_class = "ovr") 
+                            if len(unique(targets)) > 2 
+                            else roc_auc_score(targets[test_mask], softmax(output[test_mask], dim = 1).cpu().numpy())
+            }
