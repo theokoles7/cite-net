@@ -56,8 +56,8 @@ class Cora(Planetoid):
             * force_reload          (bool, optional):       Whether to re-process the dataset. 
                                                             Defaults to False.
         """
-        # Log for debugging
-        self._logger.debug(f"Cora dataset arguments: {locals()}")
-        
         # Initialize dataset
         super(Cora, self).__init__(root = "input", name = "Cora")
+        
+        # Log for debugging
+        self._logger.debug(f"Cora dataset arguments: {locals()}")

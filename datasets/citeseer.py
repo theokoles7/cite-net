@@ -56,8 +56,8 @@ class CiteSeer(Planetoid):
             * force_reload          (bool, optional):       Whether to re-process the dataset. 
                                                             Defaults to False.
         """
-        # Log for debugging
-        self._logger.debug(f"CiteSeer dataset arguments: {locals()}")
-        
         # Initialize dataset
-        super(CiteSeer, self).__init__(root = "input", name = "CiteSeer")        
+        super(CiteSeer, self).__init__(root = "input", name = "CiteSeer")    
+         
+        # Log for debugging
+        self._logger.debug(f"CiteSeer dataset arguments: {locals()}")   

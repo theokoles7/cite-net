@@ -57,8 +57,8 @@ class PubMed(Planetoid):
                                             
         # Initialize dataset                Defaults to False.
         """
-        # Log for debugging
-        self._logger.debug(f"PubMed dataset arguments: {locals()}")
-        
         # Initialize dataset
         super(PubMed, self).__init__(root = "input", name = "PubMed")
+        
+        # Log for debugging
+        self._logger.debug(f"PubMed dataset arguments: {locals()}")
