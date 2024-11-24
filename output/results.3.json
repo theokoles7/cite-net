@@ -1,0 +1,44 @@
+{
+  "CiteNet": {
+    "citeseer": {
+      "accuracy": 0.424,
+      "auc": 0.7427140390399124
+    },
+    "cora": {
+      "accuracy": 0.64,
+      "auc": 0.9183103838460527
+    },
+    "pubmed": {
+      "accuracy": 0.695,
+      "auc": 0.8499448583420014
+    }
+  },
+  "DeepWalk": {
+    "citeseer": {
+      "accuracy": 0.459,
+      "auc": 0.7665338328647491
+    },
+    "cora": {
+      "accuracy": 0.644,
+      "auc": 0.9205390094630845
+    },
+    "pubmed": {
+      "accuracy": 0.679,
+      "auc": 0.8409025927745901
+    }
+  },
+  "GCN": {
+    "citeseer": {
+      "accuracy": 0.638,
+      "auc": 0.8575979237508276
+    },
+    "cora": {
+      "accuracy": 0.782,
+      "auc": 0.9623515070624163
+    },
+    "pubmed": {
+      "accuracy": 0.762,
+      "auc": 0.8969099259780514
+    }
+  }
+}

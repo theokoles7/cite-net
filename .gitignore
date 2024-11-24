@@ -8,4 +8,5 @@ logs
 input
 
 # Output/reports
-output
+output/*
+!output/results.*.json
