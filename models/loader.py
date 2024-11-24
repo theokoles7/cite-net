@@ -2,6 +2,7 @@
 
 from logging            import Logger
 
+from models.citenet     import CiteNet
 from models.deepwalk    import DeepWalk
 from models.gcn         import GCN
 from utils              import LOGGER
@@ -49,7 +50,7 @@ def load_model(
     match model:
         
         # CiteNet
-        case "citenet":     raise NotImplementedError(f"CiteNet has not been implemented.")
+        case "citenet":     return CiteNet(channels_in = channels_in, hidden_layers = hidden_layers, channels_out = channels_out)
         
         # DeepWalk
         case "deepwalk":    return DeepWalk(**kwargs)
